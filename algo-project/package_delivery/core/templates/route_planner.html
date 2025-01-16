@@ -1,0 +1,704 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Package Delivery Route Planner</title>
+    <!-- Required CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="{% static 'css/index.css' %}">
+    <style>
+          * Add these new styles */
+        
+    </style>
+</head>
+<body>
+    
+    <div class="container">
+        
+        <div class="hero-section">
+            <div class="overlay">
+                <h1>Package Delivery Route Planner</h1>
+                <p>"Delivering Smiles, One Route at a Time." </p>
+            </div>
+        </div>
+
+        {% comment %} <h2 class="mt-3">Package Delivery Route Planner</h2> {% endcomment %}
+        
+        <div class="row">
+            <div class="col-md-4 form-container">
+                <form method="POST" id="routeForm">
+                    {% csrf_token %}
+                    
+                    <div class="location-input-group">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Pickup Point</label>
+                            <input type="text" class="form-control location-input" 
+                                id="start_point" name="start_point" 
+                                placeholder="Type or click on map">
+                            <input type="hidden" id="start_point_coords" name="start_point_coords">
+                        </div>
+                        <div class="btn2">
+                            <button type="button" class="btn btn-secondary pick-location-btn" 
+                            data-target="start_point">
+                                Pick on Map
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="location-input-group">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Delivery Point</label>
+                            <input type="text" class="form-control location-input" 
+                                id="delivery_point1" name="delivery_point1" 
+                                placeholder="Type or click on map">
+                            <input type="hidden" id="delivery_point1_coords" name="delivery_point1_coords">
+                        </div>
+                        <div class="btn2">
+                            <button type="button" class="btn btn-secondary pick-location-btn" 
+                                data-target="delivery_point1">
+                                Pick on Map
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn1 btn-primary mt-3">Calculate Route</button>
+                </form>
+            </div>
+            
+            <div class="col-md-8">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Required JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
+    <script>
+        // Predefined locations in Chittagong
+        const locations = {
+            // IIUC Locations
+            'IIUC Kumira Campus': [22.4589, 91.7856],
+            'IIUC City Campus': [22.3476, 91.8235],
+            'Kumira Bazar': [22.4582, 91.7888],
+            'Kumira Railway Station': [22.4570, 91.7870],
+            'Kumira Bridge': [22.4560, 91.7865],
+            'IIUC Central Library': [22.4595, 91.7852],
+            'IIUC Administrative Building': [22.4596, 91.7851],
+            'Sitakunda Highway (Near IIUC)': [22.4590, 91.7840],
+            
+            // Nearby Educational Institutions
+            'Chittagong University': [22.4716, 91.7878],
+            'CUET': [22.4621, 91.7711],
+            'USTC Kumira Campus': [22.4530, 91.7890],
+
+            // Major Commercial Areas
+            'GEC Circle': [22.3590, 91.8217],
+            'Agrabad Commercial Area': [22.3253, 91.8115],
+            'Chittagong Port': [22.3089, 91.8065],
+            'New Market': [22.3375, 91.8344],
+            'Reazuddin Bazar': [22.3308, 91.8379],
+            'Tamakumandi Lane': [22.3276, 91.8351],
+            
+            // Important Landmarks
+            'Chittagong Railway Station': [22.3276, 91.8126],
+            'Shah Amanat Airport': [22.2495, 91.8131],
+            'MA Aziz Stadium': [22.3414, 91.8277],
+            'Chittagong Medical College': [22.3583, 91.8275],
+            'Tiger Pass': [22.3431, 91.8234],
+            
+            // Popular Areas
+            'GEC Mor': [22.3590, 91.8217],
+            '2 No Gate': [22.3399, 91.8270],
+            'Muradpur': [22.3613, 91.8350],
+            'Chawkbazar': [22.3414, 91.8370],
+            'Nasirabad': [22.3677, 91.8288],
+            'Dampara': [22.3544, 91.8354],
+            'Halishahar': [22.3126, 91.8001],
+            'Pahartali': [22.3751, 91.8150],
+            'Khulshi': [22.3677, 91.8150],
+            
+            // Residential Areas
+            'O.R. Nizam Road': [22.3610, 91.8250],
+            'Chandgaon R/A': [22.3789, 91.8432],
+            'Jamal Khan': [22.3414, 91.8370],
+            'Mehedibag': [22.3480, 91.8390],
+            'Panchlaish': [22.3677, 91.8288],
+            'East Nasirabad': [22.3677, 91.8350],
+            'West Nasirabad': [22.3677, 91.8200],
+            'Sugandha R/A': [22.3677, 91.8320],
+            
+            // Shopping Areas
+            'Afmi Plaza': [22.3594, 91.8224],
+            'Mimi Super Market': [22.3589, 91.8220],
+            'Finlay Square': [22.3252, 91.8123],
+            'Chittagong Shopping Complex': [22.3308, 91.8379],
+            'Sanmar Ocean City': [22.3590, 91.8217],
+            
+            // Educational Institutions
+            'University of Chittagong': [22.4716, 91.7878],
+            'CUET': [22.4716, 91.7878],
+            'Port City International University': [22.3677, 91.8288],
+            'BGC Trust University': [22.3789, 91.8432],
+            'Asian University': [22.3613, 91.8350],
+            
+            // Hospitals
+            'Chittagong Medical College Hospital': [22.3583, 91.8275],
+            'Park View Hospital': [22.3677, 91.8288],
+            'Metropolitan Hospital': [22.3613, 91.8350],
+            'Max Hospital': [22.3590, 91.8217],
+            
+            // Industrial Areas
+            'EPZ': [22.2861, 91.7858],
+            'Kalurghat Industrial Area': [22.4084, 91.8673],
+            'Patenga Industrial Area': [22.2338, 91.8137],
+            
+            // Transportation Hubs
+            'BRTC Bus Terminal': [22.3308, 91.8379],
+            'Dampara Bus Stand': [22.3544, 91.8354],
+            'AK Khan Bus Stand': [22.3126, 91.8001],
+            
+            // Entertainment
+            'Foy\'s Lake': [22.3677, 91.8000],
+            'Naval Point Park': [22.2428, 91.8162],
+            'DC Hill': [22.3414, 91.8277],
+            'Patenga Sea Beach': [22.2338, 91.8137],
+            
+            // Others
+            'Oxygen Mor': [22.3789, 91.8432],
+            'Bahaddarhat': [22.3789, 91.8432],
+            'Dewanhat': [22.3308, 91.8379],
+            'Karnafuli Bridge': [22.3126, 91.8001],
+            'Kalurghat Bridge': [22.4084, 91.8673],
+            'Custom Academy': [22.3677, 91.8288],
+            'Botanical Garden': [22.3677, 91.8000]
+        };
+        $(document).ready(function() {
+                // Utility functions
+        function calculateDistance(latlng1, latlng2) {
+            return map.distance(latlng1, latlng2);
+        }
+
+        function formatDistance(meters) {
+            return meters < 1000 ? `${Math.round(meters)} m` : `${(meters/1000).toFixed(2)} km`;
+        }
+
+        // Initialize map
+        var iucCenter = [22.4597, 91.7850];
+        var map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView(iucCenter, 15);
+
+        var currentPickButton = null;
+        var markers = {};
+        var routeLayer = null;
+
+        // Add tile layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '©OpenStreetMap, ©CartoDB',
+            maxZoom: 20,
+            minZoom: 11
+        }).addTo(map);
+
+        // Add controls
+        L.control.scale({
+            position: 'bottomleft',
+            maxWidth: 200,
+            metric: true,
+            imperial: false
+        }).addTo(map);
+
+        L.control.zoom({
+            position: 'bottomright'
+        }).addTo(map);
+
+        // Marker icons for different points
+        const markerTypes = {
+            start_point: L.divIcon({
+                html: `
+                    <div class="pin" style="background-color: #27ae60; transform: rotate(45deg);">
+                        <div class="pin-inner" style="background-color: #27ae60;"></div>
+                    </div>`,
+                className: 'custom-marker'
+            }),
+            delivery_point1: L.divIcon({
+                html: `
+                    <div class="pin" style="background-color: #e74c3c; transform: rotate(45deg);">
+                        <div class="pin-inner" style="background-color: #e74c3c;"></div>
+                    </div>`,
+                className: 'custom-marker'
+            }),
+            delivery_point2: L.divIcon({
+                html: `
+                    <div class="pin" style="background-color: #3498db; transform: rotate(45deg);">
+                        <div class="pin-inner" style="background-color: #3498db;"></div>
+                    </div>`,
+                className: 'custom-marker'
+            })
+        };
+        
+        // CSS for the pin and bounce animation
+        const style = document.createElement('style');
+        style.innerHTML = `
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                background: #222;
+            }
+        
+            .pin {
+                width: 20px; /* Further reduced width */
+                height: 20px; /* Further reduced height */
+                background-color: #a55eea;
+                border-radius: 15px 15px 0px 15px; /* Smaller, rounded top */
+                position: relative;
+                transform: rotate(45deg);
+                animation: bounce 2s infinite;
+            }
+        
+            .pin::after {
+                content: "";
+                width: 10px; /* Further smaller inner circle */
+                height: 10px; /* Further smaller inner circle */
+                background: #222;
+                position: absolute;
+                left: 25%;
+                top: 25%;
+                border-radius: 50%;
+            }
+        
+            @keyframes bounce {
+                0%, 100% { transform: translateY(0) rotate(45deg); }
+                50% { transform: translateY(-2px) rotate(45deg); } /* Even smaller bounce */
+            }
+        `;
+        document.head.appendChild(style);
+        
+
+        // Add legend
+        const legend = L.control({position: 'topright'});
+        legend.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'map-overlay');
+            div.innerHTML = `
+                <div class="card">
+                    <h1">Location Types</h1>
+                    <div class="label pickup><span class="location-category" style="background: #27ae60">Pickup Point</span></div>
+                    <div class="label delivery><span class="location-category" style="background: #e74c3c">Delivery Point</span></div>
+                    
+                </div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+
+        // Add search control
+        const searchControl = L.control({position: 'topleft'});
+        searchControl.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'map-overlay search-control');
+            div.innerHTML = `
+                <input type="text" id="location-search" class="form-control" 
+                    placeholder="Search locations..." style="width: 200px;">
+                <div id="search-results" class="bg-white mt-1 rounded shadow-sm" 
+                    style="display:none; position: absolute; width: 200px; max-height: 200px; overflow-y: auto;">
+                </div>
+            `;
+            return div;
+        };
+        searchControl.addTo(map);
+
+        $('.location-input').autocomplete({
+            source: Object.keys(locations),
+            select: function(event, ui) {
+                const coords = locations[ui.item.value];
+                const inputId = $(this).attr('id');
+                $(`#${inputId}_coords`).val(coords.join(','));
+                updateMarker(inputId, coords[0], coords[1], ui.item.value);
+                map.setView(coords, 16);
+            },
+            minLength: 1,  // Start suggesting after 1 character
+            autoFocus: true
+        });
+        
+        // Handle search
+        $('#location-search').on('input', function() {
+            const searchText = $(this).val().toLowerCase();
+            const $results = $('#search-results');
+            
+            if (searchText.length < 2) {
+                $results.hide();
+                return;
+            }
+
+            const matches = Object.keys(locations).filter(name => 
+                name.toLowerCase().includes(searchText)
+            );
+
+            if (matches.length > 0) {
+                $results.html(matches.map(name => `
+                    <div class="search-result p-2 hover-bg-light" 
+                        style="cursor: pointer;" 
+                        onclick="searchSelect('${name}')">
+                        ${name}
+                    </div>
+                `).join('')).show();
+            } else {
+                $results.html('<div class="p-2">No matches found</div>').show();
+            }
+        });
+
+        function searchSelect(locationName) {
+            const coords = locations[locationName];
+            map.setView(coords, 16);
+            $('#search-results').hide();
+            $('#location-search').val(locationName);
+        }
+
+        // Handle map clicks
+        map.on('click', function(e) {
+            if (currentPickButton) {
+                const targetId = currentPickButton.data('target');
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                
+                updateMarker(targetId, lat, lng, `Selected Location`);
+                
+                currentPickButton.removeClass('btn-primary').addClass('btn-secondary');
+                currentPickButton = null;
+            }
+        });
+
+        // Handle "Pick on Map" buttons
+        $('.pick-location-btn').click(function() {
+            if (currentPickButton) {
+                currentPickButton.removeClass('btn-primary').addClass('btn-secondary');
+            }
+            currentPickButton = $(this);
+            currentPickButton.removeClass('btn-secondary').addClass('btn-primary');
+        });
+
+        // Update markers
+        // Update marker function
+        function updateMarker(inputId, lat, lng, title) {
+            // Convert coordinates to proper format
+            lat = parseFloat(lat);
+            lng = parseFloat(lng);
+            
+            if (markers[inputId]) {
+                map.removeLayer(markers[inputId]);
+            }
+            
+            // Set the coordinates in the hidden input
+            const coordsValue = `${lat},${lng}`;
+            $(`#${inputId}_coords`).val(coordsValue);
+            
+            // Debug: Log coordinate update
+            console.log(`Setting ${inputId} coordinates:`, coordsValue);
+            
+            // Create marker
+            markers[inputId] = L.marker([lat, lng], {
+                icon: markerTypes[inputId],
+                draggable: true
+            }).addTo(map);
+            
+            // Set visible input value
+            $(`#${inputId}`).val(title || `Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+            
+            markers[inputId].bindPopup(`
+                <div style="text-align: center;">
+                    <strong>${title || 'Selected Location'}</strong>
+                    <br>
+                    <small>${lat.toFixed(6)}, ${lng.toFixed(6)}</small>
+                </div>
+            `).openPopup();
+            
+            // Handle marker drag
+            markers[inputId].on('dragend', function(event) {
+                const pos = event.target.getLatLng();
+                const newCoords = `${pos.lat},${pos.lng}`;
+                $(`#${inputId}_coords`).val(newCoords);
+                $(`#${inputId}`).val(`Location (${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)})`);
+                console.log(`Updated ${inputId} coordinates:`, newCoords);
+            });
+        }
+
+        // Remove location
+        function removeLocation(inputId) {
+            if (markers[inputId]) {
+                map.removeLayer(markers[inputId]);
+                delete markers[inputId];
+                $(`#${inputId}`).val('');
+                $(`#${inputId}_coords`).val('');
+                drawRoute();
+            }
+        }
+
+        // Draw route
+        function drawRoute() {
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+
+            const points = [];
+            if (markers.start_point) points.push(markers.start_point.getLatLng());
+            if (markers.delivery_point1) points.push(markers.delivery_point1.getLatLng());
+            if (markers.delivery_point2) points.push(markers.delivery_point2.getLatLng());
+
+            if (points.length >= 2) {
+                routeLayer = L.polyline(points, {
+                    color: '#3498db',
+                    weight: 4,
+                    opacity: 0.8,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    dashArray: '1, 10'
+                }).addTo(map);
+
+                // Calculate and display total distance
+                let totalDistance = 0;
+                for (let i = 0; i < points.length - 1; i++) {
+                    totalDistance += calculateDistance(points[i], points[i + 1]);
+                }
+
+                if (!this.routeInfo) {
+                    this.routeInfo = L.control({position: 'bottomleft'});
+                    this.routeInfo.onAdd = function(map) {
+                        const div = L.DomUtil.create('div', 'map-overlay route-info');
+                        return div;
+                    };
+                    this.routeInfo.addTo(map);
+                }
+
+                this.routeInfo.getContainer().innerHTML = `
+                    <div style="background: white; padding: 8px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <strong>Route Details:</strong><br>
+                        Total Distance: ${formatDistance(totalDistance)}<br>
+                        Stops: ${points.length}
+                    </div>
+                `;
+            }
+        }
+
+
+        // Add predefined locations to map
+        for (let [name, coords] of Object.entries(locations)) {
+            L.circleMarker(coords, {
+                radius: 6,
+                fillColor: '#95a5a6',
+                color: '#fff',
+                weight: 1,
+                opacity: 0.7,
+                fillOpacity: 0.5
+            }).addTo(map).bindPopup(name);
+        }
+        // Form submission handler
+        $('#routeForm').on('submit', function(e) {
+            e.preventDefault();
+
+            // Check if this is an automatic submission
+            if (e.originalEvent === undefined) {
+                return false;
+            }
+
+            // Get coordinates once
+            const startCoords = $('#start_point_coords').val();
+            const deliveryCoords = $('#delivery_point1_coords').val();
+
+            console.log('Start coords:', startCoords);
+            console.log('Delivery coords:', deliveryCoords);
+
+            // Single validation check
+            if (!startCoords || !deliveryCoords) {
+                alert('Please select both pickup and delivery locations');
+                return false;
+            }
+
+            // Create FormData with correct values
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', $('[name=csrfmiddlewaretoken]').val());
+            formData.append('start_point_coords', startCoords);
+            formData.append('delivery_point1_coords', deliveryCoords);
+
+            // Debug: Log form data
+            console.log('Sending coordinates:', {
+                start: startCoords,
+                delivery: deliveryCoords
+            });
+            
+            // Send to backend
+            $.ajax({
+                url: '',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    console.log('Success:', response);
+                    if (response.route) {
+                        // Clear existing route
+                        if (routeLayer) {
+                            map.removeLayer(routeLayer);
+                        }
+                        
+                        // Draw new route
+                        routeLayer = L.polyline(response.route.path, {
+                            color: '#3498db',
+                            weight: 4,
+                            opacity: 0.8,
+                            lineCap: 'round',
+                            lineJoin: 'round'
+                        }).addTo(map);
+
+                        // Add markers for waypoints
+                        if (response.route.waypoints) {
+                            response.route.waypoints.forEach((point, index) => {
+                                if (index !== 0 && index !== response.route.waypoints.length - 1) {
+                                    L.circleMarker(point, {
+                                        radius: 4,
+                                        color: '#e74c3c',
+                                        fillColor: '#fff',
+                                        fillOpacity: 1,
+                                        weight: 2
+                                    }).addTo(map);
+                                }
+                            });
+                        }
+
+                        // Update route info
+                        if (!this.routeInfo) {
+                            this.routeInfo = L.control({position: 'bottomleft'});
+                            this.routeInfo.onAdd = function(map) {
+                                const div = L.DomUtil.create('div', 'route-info-container');
+                                return div;
+                            };
+                            this.routeInfo.addTo(map);
+                        }
+
+                        const distanceKm = response.route.total_distance;
+                        const estimatedTime = Math.ceil(distanceKm * 3); // 3 minutes per km
+                        const baseFare = Math.ceil(distanceKm * 20);
+                        const distanceCharge = Math.ceil(distanceKm * 10);
+                        const totalCost = baseFare + distanceCharge;
+
+                        this.routeInfo.getContainer().innerHTML = `
+                            <div class="route-info-container">
+                                <h5 style="margin-bottom: 15px;">Route Details</h5>
+                                
+                                <div class="route-info-section">
+                                    <strong>Distance & Time</strong>
+                                    <ul>
+                                        {% comment %} <li>Total Distance: ${distanceKm.toFixed(2)} km</li> {% endcomment %}
+                                        <li>Estimated Time: ${estimatedTime} minutes</li>
+                                    </ul>
+                                </div>
+
+                                <div class="route-info-section">
+                                    <strong>Locations</strong>
+                                    <ul>
+                                        <li>Start: ${$('#start_point').val()}</li>
+                                        <li>End: ${$('#delivery_point1').val()}</li>
+                                    </ul>
+                                </div>
+
+                                <div class="route-info-section">
+                                    <strong>Route Statistics</strong>
+                                    <ul>
+                                        <li>Total Waypoints: ${response.route.waypoints.length}</li>
+                                        <li>Major Intersections: ${response.route.waypoints.length - 2}</li>
+                                        <li>Traffic Zones: ${Math.ceil(response.route.waypoints.length / 2)}</li>
+                                    </ul>
+                                </div>
+
+                                <div class="route-info-section">
+                                    <strong>Delivery Information</strong>
+                                    <ul>
+                                        <li>Package Size: Standard</li>
+                                        <li>Priority Level: Regular</li>
+                                        <li>Service Type: Ground Delivery</li>
+                                    </ul>
+                                </div>
+
+                                <div class="route-info-section">
+                                    <strong>Cost Breakdown</strong>
+                                    <ul>
+                                        <li>Total Distance: ${distanceKm.toFixed(2)} km</li>
+
+                                        <li>Base Fare: ৳${baseFare}</li>
+                                        <li>Distance Charge: ৳${distanceCharge}</li>
+                                        <li class="cost-highlight">Total Cost: ৳${totalCost}</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        `;
+
+                        // Fit map bounds to show entire route
+                        map.fitBounds(routeLayer.getBounds(), {
+                            padding: [50, 50]
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Error:', xhr.responseJSON);
+                    alert(xhr.responseJSON?.error || 'Please select both locations');
+                }
+            });
+        });
+    });
+
+    this.routeInfo.getContainer().innerHTML = `
+    <div class="route-info-container" style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h5 class="mb-3">Route Details</h5>
+        
+        <div class="route-info-section">
+            <strong>Distance & Time:</strong>
+            <ul>
+                <li>Total Distance: ${distanceKm.toFixed(2)} km</li>
+                <li>Estimated Travel Time: ${Math.ceil(distanceKm * 3)} minutes</li>
+            </ul>
+        </div>
+
+        <div class="route-info-section">
+            <strong>Locations:</strong>
+            <ul>
+                <li>Start: ${response.route.start_location || 'Pickup Point'}</li>
+                <li>End: ${response.route.end_location || 'Delivery Point'}</li>
+            </ul>
+        </div>
+
+        <div class="route-info-section">
+            <strong>Route Statistics:</strong>
+            <ul>
+                <li>Waypoints: ${response.route.waypoints.length}</li>
+                <li>Major Intersections: ${response.route.waypoints.length - 2}</li>
+                <li>Traffic Zones: ${Math.ceil(response.route.waypoints.length / 2)}</li>
+            </ul>
+        </div>
+
+        <div class="route-info-section">
+            <strong>Delivery Info:</strong>
+            <ul>
+                <li>Package Size: Standard</li>
+                <li>Priority Level: Regular</li>
+                <li>Service Type: Ground Delivery</li>
+            </ul>
+        </div>
+
+        <div class="route-info-section">
+            <strong>Cost Estimates:</strong>
+            <ul>
+                <li>Base Fare: ৳${Math.ceil(distanceKm * 20)}</li>
+                <li>Distance Charge: ৳${Math.ceil(distanceKm * 10)}</li>
+                <li>Total Cost: ৳${Math.ceil(distanceKm * 30)}</li>
+            </ul>
+        </div>
+    </div>
+`;
+    </script>
+</body>
+</html>
